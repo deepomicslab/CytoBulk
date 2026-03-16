@@ -2,10 +2,8 @@
 
 CytoBulk is a toolkit for bulk and spatial transcriptomics deconvolution and mapping.
 
-## Important Note
-
 - CytoBulk has been tested on WSL2 and Linux systems.
-- On Windows, Docker is the recommended first-choice installation/runtime method.
+- On Windows and macOS, many packages listed in `environment.yml` may not have matching versions (or may be unavailable), so Docker is the recommended first-choice installation/runtime method.
 - If local installation fails and the issue cannot be resolved, please use Docker.
 
 Core functions:
