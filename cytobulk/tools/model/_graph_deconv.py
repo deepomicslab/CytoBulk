@@ -1408,13 +1408,15 @@ class GraphDeconv:
   
       sim_train_dataset = torch.utils.data.Subset(base_dataset, best_train_indices)
       sim_valid_dataset = torch.utils.data.Subset(base_dataset, best_valid_indices)
-
+      '''
       y_valid = y_sim_full[best_valid_indices].cpu().numpy()
+
       y_valid_df = pd.DataFrame(
             y_valid,
             columns=fraction.columns  
         )
       y_valid_df.to_csv(f"{out_dir}/validation_y.csv", index=False)
+      '''
   
       valid_loader = create_safe_dataloader(sim_valid_dataset, batch_size, shuffle=False, min_last_batch=10)
   

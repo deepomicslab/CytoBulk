@@ -262,7 +262,7 @@ def compute_average_cosin(pseudo_bulk_tensor,bulk_adata,loc=None):
     from sklearn.metrics.pairwise import cosine_similarity
     valid_list=[]
     for i in pseudo_bulk_tensor:
-        valid_list.append(i[0].numpy())
+        valid_list.append(i[0].detach().cpu().numpy())
     pseudo_matrix = np.array(valid_list)
     if loc:
         bulk_matrix = bulk_adata.layers[loc]
@@ -278,7 +278,7 @@ def compute_average_pearson(pseudo_bulk_tensor, bulk_adata, loc=None):
     # Extract pseudo bulk data from tensor
     valid_list = []
     for i in pseudo_bulk_tensor:
-        valid_list.append(i[0].numpy())
+        valid_list.append(i[0].detach().cpu().numpy())
     pseudo_matrix = np.array(valid_list)
     
     # Get bulk matrix

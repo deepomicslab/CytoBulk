@@ -62,6 +62,12 @@ docker pull kristawang/cytobulk:1.0.0
 docker images | grep cytobulk
 ```
 
+If Docker runs into OOM killer or other out-of-memory issues, add a memory limit to the Docker command, for example:
+
+```bash
+docker run --memory=16g ...
+```
+
 ## 1.3 Troubleshooting
 
 ### Issue: rpy2 installation fails with "command 'gcc' failed"
