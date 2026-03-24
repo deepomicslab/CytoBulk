@@ -20,8 +20,8 @@ Core functions:
 
 For reproducing results from the paper, please refer to:
 
-- **Code**: https://github.com/kristaxying/CytoBulk_paper
-- **Data**: xxx
+- **Code**: [https://github.com/deepomicslab/CytoBulk_paper](https://github.com/deepomicslab/CytoBulk_paper)
+- **Data**: [https://doi.org/10.5281/zenodo.18495002](https://doi.org/10.5281/zenodo.18495002)
 
 ---
 
@@ -475,9 +475,9 @@ If you encounter the following error while running `ct.tl.he_mapping`:
 This error usually means the pretrained model file was not fully downloaded (corrupted/incomplete file).
 To resolve it, manually download the model file and place it in the package pretrained-model directory.
 
-Download link:
+Download `DeepCMorph_Datasets_Combined_41_classes_acc_8159.pth` from:
 
-- `xxx/DeepCMorph_Datasets_Combined_41_classes_acc_8159.pth`
+- [https://zenodo.org/records/18495002](https://zenodo.org/records/18495002)
 
 Then place it at:
 
