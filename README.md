@@ -179,6 +179,90 @@ Additional preprocessing kwargs commonly used:
 - `giotto_gene_num` (default in preprocessing: `150`): marker-gene count for Giotto-based marker detection.
 - `skip_find_markers` (default in preprocessing: `False`): skip marker discovery and use overlapping genes directly.
 
+### 3.5 Output
+
+- `deconv_result` (`pandas.DataFrame`): predicted cell-type fractions, and it is also stored in `bulk_out.uns['deconv']`.
+- `bulk_out` (`anndata.AnnData`): original bulk `AnnData` with `uns['deconv']` added; saved to `out_dir/output/{dataset_name}_bulk_adata.h5ad`.
+
+### 3.6 Demo case (`bulk_deconv`)
+
+We provide one runnable demo input in `demo/`:
+
+- `demo/NSCLC_GSE127471.h5ad` (single-cell reference)
+- `demo/NSCLC_GSE127471_bulk.h5ad` (bulk input)
+
+Use `annotation_key="Celltype_minor"` for this demo.
+
+Docker version:
+
+```bash
+DATASET_DIR="/absolute/path/to/CytoBulk/demo"
+DATASET_OUT="/absolute/path/to/output_dir"
+DATASET_NAME="NSCLC_GSE127471"
+
+docker run --rm -it \
+	-e PYTHONUNBUFFERED=1 \
+	-e HOST_UID="$(id -u)" \
+	-e HOST_GID="$(id -g)" \
+	-v "${DATASET_DIR}":/inputs:ro \
+	-v "${DATASET_OUT}":/outputs \
+	kristawang/cytobulk:1.0.0 \
+	bulk_deconv \
+	--sc "/inputs/${DATASET_NAME}.h5ad" \
+	--bulk "/inputs/${DATASET_NAME}_bulk.h5ad" \
+	--annotation_key "Celltype_minor" \
+	--out_dir "/outputs/" \
+	--dataset_name "${DATASET_NAME}" \
+	--n_cell 100 \
+	--seed 64 \
+	--specificity False
+```
+
+Path definition for Docker mounts:
+
+- `DATASET_DIR`: local folder containing demo input files; mounted to container path `/inputs` as read-only.
+- `DATASET_OUT`: local output folder; mounted to container path `/outputs` for writing results.
+- `--sc` and `--bulk`: container-internal input paths under `/inputs`.
+- `--out_dir`: container-internal output path (`/outputs/`).
+
+Conda version:
+
+```python
+import os
+import cytobulk as ct
+from scanpy import read_h5ad
+
+dataset_name = "NSCLC_GSE127471"
+annotation_key = "Celltype_minor"
+
+sc_adata_path = "demo/NSCLC_GSE127471.h5ad"
+bulk_adata_path = "demo/NSCLC_GSE127471_bulk.h5ad"
+out_dir = "demo_output"
+n_cell = 100
+
+sc_adata = read_h5ad(sc_adata_path)
+bulk_adata = read_h5ad(bulk_adata_path)
+# keep behavior consistent with your original script
+sc_adata.raw = None
+
+os.makedirs(out_dir, exist_ok=True)
+
+print("start")
+ct.tl.bulk_deconv(
+		bulk_data=bulk_adata,
+		sc_adata=sc_adata,
+		annotation_key=annotation_key,
+		out_dir=out_dir,
+		dataset_name=dataset_name,
+		different_source=True,
+		n_cell=int(n_cell),
+		use_adversarial=True,
+		specificity=False,
+		giotto_gene_num=150,
+		downsampling=False,
+)
+```
+
 ---
 
 ## 4) `st_deconv`
@@ -236,6 +320,11 @@ docker run --rm -it \
 - `st_hvg` (default: `True`): whether to keep HVGs for ST data.
 - `reproduce` (default: `False`): requires pretrained files in `out_dir/st_model` and batch-effect file under `out_dir/st_model/batch_effect`.
 
+### 4.5 Output
+
+- `deconv_result` (`pandas.DataFrame`): predicted cell-type fractions, and it is also stored in `st_out.uns['deconv']`.
+- `st_out` (`anndata.AnnData`): original ST `AnnData` with `uns['deconv']` added; saved to `out_dir/output/{dataset_name}_st_adata.h5ad`.
+
 ---
 
 ## 5) `st_mapping`
@@ -292,6 +381,11 @@ docker run --rm -it \
 - `scRNA_max_transcripts_per_cell` (default: `1500`): transcript cap when `sc_downsample=True`.
 - `mean_cell_numbers` (default: `8`): used to estimate cells per spot if `st_adata.obsm['cell_num']` is absent.
 - `save_reconstructed_st` (default: `True`): save reconstructed ST `AnnData`.
+
+### 5.5 Output
+
+- `reconstructed_sc` (`pandas.DataFrame`): spot-to-cell mapping table with columns `spot_id` and `cell_id`.
+- `reconstructed_adata` (`anndata.AnnData`): reconstructed ST expression `AnnData` (contains reconstructed expression and original ST in layer `original_st`).
 
 ---
 
@@ -351,6 +445,11 @@ docker run --rm -it \
 - `normalization` (default: `True`): apply CPM + log normalization before mapping.
 - `filter_gene` (default: `True`): filter genes by cosine similarity between original and reconstructed bulk expression.
 - `save` (default: `True`): write mapping outputs to disk.
+
+### 6.5 Output
+
+- `reconstructed_cell` (`pandas.DataFrame`): mapping table with columns `sample_id` and `cell_id`.
+- `reconstructed_bulk` (`anndata.AnnData`): bulk `AnnData` containing mapping-related layers/fields (for example `layers['mapping']`, `layers['mapping_ori']`, `obsm['cell_number']`).
 
 ---
 
@@ -466,7 +565,15 @@ If you run SVS preprocessing (`ct.pp.process_svs_image` or Docker flags):
 - `expression_weight` (default: `0`): expression term weight in cost matrix when anchor expression is provided.
 - `skip_filtering` (default: `False`): skip scRNA filtering in this function.
 
-### 7.5 Troubleshooting: model file loading error
+### 7.5 Output
+
+- When `mapping_sc=False`: returns only `cell_coordinates` (`pandas.DataFrame`, H&E inferred cell coordinates and predicted cell types).
+- When `mapping_sc=True` and `return_adata=False`: returns `(cell_coordinates, mapping_df)`.
+- When `mapping_sc=True` and `return_adata=True`: returns `(cell_coordinates, mapping_df, matched_adata)`.
+	- `mapping_df` is the H&E-to-scRNA matching table.
+	- `matched_adata` is the matched/filtered single-cell `AnnData`.
+
+### 7.6 Troubleshooting: model file loading error
 
 If you encounter the following error while running `ct.tl.he_mapping`:
 
@@ -497,4 +604,4 @@ Large model files are not committed by default. If needed, place:
 
 ## 9) Repository
 
-GitHub: https://github.com/kristaxying/CytoBulk
+GitHub: https://github.com/deepomicslab/CytoBulk
