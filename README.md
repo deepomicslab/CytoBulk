@@ -256,7 +256,6 @@ ct.tl.bulk_deconv(
 		dataset_name=dataset_name,
 		different_source=True,
 		n_cell=int(n_cell),
-		use_adversarial=True,
 		specificity=False,
 		giotto_gene_num=150,
 		downsampling=False,

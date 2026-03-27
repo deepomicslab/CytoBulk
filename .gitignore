@@ -45,7 +45,6 @@ cytobulk/tools/model/pretrained_models/*.pth
 
 # Data files
 *.h5
-*.h5ad
 
 # OS
 .DS_Store
