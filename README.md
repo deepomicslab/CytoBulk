@@ -27,7 +27,7 @@ For reproducing results from the paper, please refer to:
 
 ## 1) Installation
 
-## 1.1 Conda installation (recommended)
+## 1.1 Conda installation 
 
 Run commands first:
 
@@ -67,6 +67,8 @@ If Docker runs into OOM killer or other out-of-memory issues, add a memory limit
 ```bash
 docker run --memory=16g ...
 ```
+
+**Note on Docker logs:** In some environments, runtime logs may appear in batches (or mostly at the end) due to output buffering behavior. If you do not see real-time logs, the program may still be running normally.
 
 ## 1.3 Troubleshooting
 
