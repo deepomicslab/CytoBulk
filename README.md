@@ -193,6 +193,8 @@ We provide one runnable demo input in `demo/`:
 
 Use `annotation_key="Celltype_minor"` for this demo.
 
+For randomly simulated data (for example, `NSCLC_GSE127471`), we recommend `specificity=False`; otherwise, set `specificity=True` or keep it unset (use default behavior).
+
 Docker version:
 
 ```bash
@@ -231,6 +233,9 @@ Conda version:
 import os
 import cytobulk as ct
 from scanpy import read_h5ad
+import warnings
+
+warnings.filterwarnings("ignore")
 
 dataset_name = "NSCLC_GSE127471"
 annotation_key = "Celltype_minor"
@@ -238,29 +243,25 @@ annotation_key = "Celltype_minor"
 sc_adata_path = "demo/NSCLC_GSE127471.h5ad"
 bulk_adata_path = "demo/NSCLC_GSE127471_bulk.h5ad"
 out_dir = "demo_output"
-n_cell = 100
+
 
 sc_adata = read_h5ad(sc_adata_path)
 bulk_adata = read_h5ad(bulk_adata_path)
-# keep behavior consistent with your original script
-sc_adata.raw = None
 
 os.makedirs(out_dir, exist_ok=True)
 
-print("start")
 ct.tl.bulk_deconv(
 		bulk_data=bulk_adata,
 		sc_adata=sc_adata,
 		annotation_key=annotation_key,
 		out_dir=out_dir,
 		dataset_name=dataset_name,
-		different_source=True,
-		n_cell=int(n_cell),
-		specificity=False,
-		giotto_gene_num=150,
-		downsampling=False,
+		n_cell=100,
+		specificity=False
 )
 ```
+
+**Note:** Due to repository storage constraints, only `bulk_deconv` demo data is provided in this repository. For more comprehensive demo cases and use cases for other functions (`st_deconv`, `st_mapping`, `bulk_mapping`, `he_mapping`), please refer to the [CytoBulk_paper repository](https://github.com/deepomicslab/CytoBulk_paper).
 
 ---
 
