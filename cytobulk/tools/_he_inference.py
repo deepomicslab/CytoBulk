@@ -46,7 +46,7 @@ def process_txt_files(input_dir, output_file_name, project_name_filter=None):
 
     output_file_path = os.path.join(input_dir, output_file_name)
 
-    # 打开输出文件
+    # Open the output file.
     with open(output_file_path, "w") as outfile:
 
         for filename in os.listdir(input_dir):

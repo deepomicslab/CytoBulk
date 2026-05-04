@@ -950,7 +950,7 @@ def st_simulation(sc_adata,
         else:
             from sklearn.metrics.pairwise import cosine_similarity
             
-            # 计算每种细胞类型的平均表达
+            # Compute the average expression for each cell type.
             average_cell_exp = compute_cluster_averages(
                 sub_sc_adata,
                 annotation_key,
@@ -1086,7 +1086,7 @@ def st_simulation(sc_adata,
             
             #if boosted_celltypes:
                 #print(f"\n[Boosted cell types to be mixed into other samples]: {list(boosted_celltypes.keys())}")
-            # ========== 识别结束 ==========
+            # ========== End identification ==========
 
             cell_sample_allocation = allocate_samples_by_frequency(
                 top1_counts=top1_counts,
@@ -1173,7 +1173,7 @@ def st_simulation(sc_adata,
                             project,
                             sample_type='freq',
                             set_missing=False,
-                            boosted_celltypes=boosted_celltypes  # 传入boosted类型
+                            boosted_celltypes=boosted_celltypes  # Pass boosted cell types.
                         )
                         new_data.append(ref_data)
                         new_prop.append(ref_prop)

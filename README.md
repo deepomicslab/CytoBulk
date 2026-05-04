@@ -70,6 +70,8 @@ docker run --memory=16g ...
 
 **Note on Docker logs:** In some environments, runtime logs may appear in batches (or mostly at the end) due to output buffering behavior. If you do not see real-time logs, the program may still be running normally.
 
+In some runs, an R-related segmentation fault may appear at the very end (suspected in an additional spatial evaluation step). This does not affect generation of core output files.
+
 ## 1.3 Troubleshooting
 
 ### Issue: rpy2 installation fails with "command 'gcc' failed"
