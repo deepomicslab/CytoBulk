@@ -10,6 +10,34 @@ import scanpy as sc
 from .. import utils
 
 
+def _validate_simulation_mode(simulation_mode):
+    if simulation_mode not in {"default", "random"}:
+        raise ValueError(
+            "simulation_mode must be either 'default' or 'random', "
+            f"got {simulation_mode!r}"
+        )
+
+
+def _infer_cached_simulation_mode(pseudo_adata):
+    cached_mode = pseudo_adata.uns.get("simulation_mode")
+    if cached_mode in {"default", "random"}:
+        return cached_mode
+    names = pseudo_adata.obs_names[: min(10, pseudo_adata.n_obs)]
+    if len(names) > 0 and all(str(name).endswith("_random_sc") for name in names):
+        return "random"
+    return "default"
+
+
+def _check_cached_simulation_mode(pseudo_adata, simulation_mode, cached_path):
+    cached_mode = _infer_cached_simulation_mode(pseudo_adata)
+    if cached_mode != simulation_mode:
+        raise ValueError(
+            f"Cached simulation at {cached_path} uses simulation_mode="
+            f"{cached_mode!r}, but {simulation_mode!r} was requested. "
+            "Use a matching mode or a new out_dir/dataset_name."
+        )
+
+
 def _bulk_sc_deconv(
     bulk_adata, 
     presudo_bulk, 
@@ -124,6 +152,7 @@ def bulk_deconv(
     wavelet_type = None,
     reproduce=False, 
     bulk_hvg=True, 
+    simulation_mode="default",
     **kwargs
 ):
     """
@@ -174,6 +203,12 @@ def bulk_deconv(
         If any is missing, raise an error with instructions for the user to download them manually.
     bulk_hvg : bool, optional
         If True, only keep highly variable genes in bulk data.
+    simulation_mode : {"default", "random"}, optional
+        Simulation strategy. ``"default"`` keeps the existing CytoBulk
+        strategy. ``"random"`` uniformly samples single cells with replacement
+        from the complete reference pool. Random mode uses NumPy's global RNG;
+        set the global seed before calling this function when reproducibility is
+        required.
     **kwargs : 
         Additional keyword arguments forwarded to
         :func:`~cytobulk.preprocessing.qc_bulk_sc`.
@@ -182,6 +217,7 @@ def bulk_deconv(
     -------
     Returns the deconvolution result and reconstructed bulk.
     """
+    _validate_simulation_mode(simulation_mode)
     utils.check_paths(out_dir)
     # check the filtered dataset. If exist, skipping preprocessing.
     if reproduce:
@@ -216,7 +252,9 @@ def bulk_deconv(
     if exists(f'{out_dir}/filtered/pseudo_bulk_{dataset_name}.h5ad') and exists(f'{out_dir}/filtered/sc_data_{dataset_name}.h5ad') and \
     exists(f'{out_dir}/filtered/bulk_data_{dataset_name}.h5ad') and exists(f'{out_dir}/filtered/cells_{dataset_name}.json'):
         
-        pseudo_bulk = sc.read_h5ad(f"{out_dir}/filtered/pseudo_bulk_{dataset_name}.h5ad")
+        pseudo_path = f"{out_dir}/filtered/pseudo_bulk_{dataset_name}.h5ad"
+        pseudo_bulk = sc.read_h5ad(pseudo_path)
+        _check_cached_simulation_mode(pseudo_bulk, simulation_mode, pseudo_path)
         sc_adata = sc.read_h5ad(f"{out_dir}/filtered/sc_data_{dataset_name}.h5ad")
         bulk_adata = sc.read_h5ad(f"{out_dir}/filtered/bulk_data_{dataset_name}.h5ad")
         with open(f"{out_dir}/filtered/cells_{dataset_name}.json") as json_file:
@@ -245,6 +283,7 @@ def bulk_deconv(
                                                                         specificity=specificity,
                                                                         high_purity=high_purity,
                                                                         bulk_hvg = bulk_hvg,
+                                                                        simulation_mode=simulation_mode,
                                                                         **kwargs)
     #deconvolution
     if exists(f'{out_dir}/output/{dataset_name}_prediction_frac.csv'):
@@ -289,6 +328,7 @@ def st_deconv(
     use_adversarial=True,
     reproduce=False,
     st_hvg=True,
+    simulation_mode="default",
     **kwargs
 ):
     """
@@ -338,6 +378,12 @@ def st_deconv(
         If any is missing, raise an error with instructions for the user to download them manually.
     st_hvg : bool, optional
         If True, only keep highly variable genes in st data.
+    simulation_mode : {"default", "random"}, optional
+        Simulation strategy. ``"default"`` keeps the existing CytoBulk
+        strategy. ``"random"`` uniformly samples single cells with replacement
+        from the complete reference pool. Random mode uses NumPy's global RNG;
+        set the global seed before calling this function when reproducibility is
+        required.
     **kwargs : 
         Additional keyword arguments forwarded to
         :func:`~cytobulk.preprocessing.qc_bulk_sc`.
@@ -346,6 +392,7 @@ def st_deconv(
     -------
     Returns the deconvolution result and reconstructed st.
     """
+    _validate_simulation_mode(simulation_mode)
     if reproduce:
         model_dir = Path(out_dir) / "st_model"
 
@@ -379,7 +426,9 @@ def st_deconv(
     print(st_ori_adata)
     if exists(f'{out_dir}/filtered/pseudo_bulk_{dataset_name}.h5ad') and exists(f'{out_dir}/filtered/sc_data_{dataset_name}.h5ad') and \
     exists(f'{out_dir}/filtered/bulk_data_{dataset_name}.h5ad') and exists(f'{out_dir}/filtered/cells_{dataset_name}.json'):
-        pseudo_st = sc.read_h5ad(f"{out_dir}/filtered/pseudo_bulk_{dataset_name}.h5ad")
+        pseudo_path = f"{out_dir}/filtered/pseudo_bulk_{dataset_name}.h5ad"
+        pseudo_st = sc.read_h5ad(pseudo_path)
+        _check_cached_simulation_mode(pseudo_st, simulation_mode, pseudo_path)
         sc_adata = sc.read_h5ad(f"{out_dir}/filtered/sc_data_{dataset_name}.h5ad")
         st_adata = sc.read_h5ad(f"{out_dir}/filtered/bulk_data_{dataset_name}.h5ad")
         with open(f"{out_dir}/filtered/cells_{dataset_name}.json") as json_file:
@@ -407,6 +456,7 @@ def st_deconv(
                                                                         save_figure=save_figure,
                                                                         skip_find_markers=skip_find_markers,
                                                                         bulk_hvg=st_hvg,
+                                                                        simulation_mode=simulation_mode,
                                                                         **kwargs)
     #deconvolution
     if exists(f'{out_dir}/output/{dataset_name}_prediction_frac.csv'):

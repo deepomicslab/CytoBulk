@@ -225,6 +225,7 @@ def preprocessing(bulk_data,
                 specificity=False,
                 high_purity=False,
                 bulk_hvg=True,
+                simulation_mode="default",
                 **kwargs):
     """
     Preprocessing on bulk and sc adata, including following steps:\ 
@@ -265,6 +266,11 @@ def preprocessing(bulk_data,
         Whether save figures during preprocessing. eg. scatter plot of pca data.
     python_path: string, optional
         The path of python.exe for Giotto package.
+    simulation_mode: {"default", "random"}, optional
+        Simulation strategy used to construct pseudo samples. ``"default"``
+        keeps the existing CytoBulk strategy. ``"random"`` uniformly samples
+        single cells with replacement from the complete reference pool. Random
+        mode follows NumPy's global random state.
     **kwargs: 
         Additional keyword arguments forwarded to
         :func:`~cytobulk.preprocessing.qc_bulk_sc`.
@@ -286,6 +292,11 @@ def preprocessing(bulk_data,
     """
     if  annotation_key not in sc_adata.obs:
         raise ValueError(f'The key {annotation_key!r} is not available in .obs!')
+    if simulation_mode not in {"default", "random"}:
+        raise ValueError(
+            "simulation_mode must be either 'default' or 'random', "
+            f"got {simulation_mode!r}"
+        )
     # rename the cell type in sc_adata.obs
     if rename is not None:
         print("Start renaming cell type annotation")
@@ -424,7 +435,8 @@ def preprocessing(bulk_data,
                 different_source=different_source,
                 average_ref=True,
                 save=True,
-                return_adata=True)
+                return_adata=True,
+                simulation_mode=simulation_mode)
     else:
         if n_sample_each_group<400:
             n_sample_each_group=400
@@ -441,7 +453,8 @@ def preprocessing(bulk_data,
                         save=True,
                         return_adata=True,
                         specificity = specificity,
-                        high_purity = high_purity)
+                        high_purity = high_purity,
+                        simulation_mode=simulation_mode)
     common_cell = pseudo_adata.obs.columns
 
     if save:

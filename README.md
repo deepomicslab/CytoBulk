@@ -174,6 +174,7 @@ docker run --rm -it \
 - `high_purity` (default: `False`): only meaningful when `specificity=True`; generates higher dominant-cell-type purity in simulation.
 	- Recommendation: set `True` for high tumor-purity cohorts (for example, TCGA-like settings).
 - `bulk_hvg` (default: `True`): whether to also keep highly variable genes (HVGs) in bulk data.
+- `simulation_mode` (default: `"default"`): pseudo-sample simulation strategy. Use `"random"` to draw single cells uniformly with replacement from the complete reference pool. Random mode follows NumPy's global random state; set the global seed before calling CytoBulk when reproducibility is required.
 - `reproduce` (default: `False`): enable strict reproduction mode; requires pretrained files in `out_dir/model` and batch-effect file under `out_dir/model/batch_effect`.
 
 
@@ -322,6 +323,7 @@ docker run --rm -it \
 - `skip_find_markers` (default: `False`): skip marker detection (and use all overlap genes).
 - `use_adversarial` (default: `True`): adversarial model training toggle.
 - `st_hvg` (default: `True`): whether to keep HVGs for ST data.
+- `simulation_mode` (default: `"default"`): pseudo-spot simulation strategy. Use `"random"` to draw single cells uniformly with replacement from the complete reference pool. Random mode follows NumPy's global random state; set the global seed before calling CytoBulk when reproducibility is required.
 - `reproduce` (default: `False`): requires pretrained files in `out_dir/st_model` and batch-effect file under `out_dir/st_model/batch_effect`.
 
 ### 4.5 Output

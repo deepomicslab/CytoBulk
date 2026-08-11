@@ -525,6 +525,174 @@ def pearson_similarity_matrix_vectorized(X, Y):
     correlation_matrix = np.dot(X_normalized, Y_normalized.T) / X.shape[1]
     
     return correlation_matrix
+
+
+def _validate_simulation_mode(simulation_mode):
+    valid_modes = {"default", "random"}
+    if simulation_mode not in valid_modes:
+        raise ValueError(
+            "simulation_mode must be either 'default' or 'random', "
+            f"got {simulation_mode!r}"
+        )
+
+
+def _infer_cached_simulation_mode(pseudo_adata):
+    cached_mode = pseudo_adata.uns.get("simulation_mode")
+    if cached_mode in {"default", "random"}:
+        return cached_mode
+    names = pseudo_adata.obs_names[: min(10, pseudo_adata.n_obs)]
+    if len(names) > 0 and all(str(name).endswith("_random_sc") for name in names):
+        return "random"
+    return "default"
+
+
+def _random_single_cell_simulation(
+    sc_adata,
+    cell_list,
+    annotation_key,
+    project,
+    out_dir,
+    n_sample_each_group,
+    min_cells_each_group,
+    cell_gap_each_group,
+    group_number,
+    rename_dict=None,
+    save=False,
+    return_adata=True,
+    data_kind="st",
+):
+    """Simulate mixtures by uniformly drawing cells from the full SC pool.
+
+    Cells are sampled with replacement. Fractions are calculated from the
+    labels of the cells actually drawn, so this mode preserves the empirical
+    abundance of cell types in ``sc_adata``. The implementation matches the
+    random-single-cell DBiTplus pretest.
+
+    Randomness follows the global NumPy state: a caller can reproduce a run by
+    setting ``np.random.seed(...)`` before starting CytoBulk, exactly as in the
+    random-single-cell pretest.
+    """
+    if data_kind not in {"st", "bulk"}:
+        raise ValueError("data_kind must be either 'st' or 'bulk'")
+    if n_sample_each_group <= 0 or group_number <= 0:
+        raise ValueError("n_sample_each_group and group_number must be positive")
+
+    cell_types = [str(value) for value in cell_list]
+    if len(cell_types) != len(set(cell_types)):
+        raise ValueError("cell_list contains duplicated cell types")
+    output_cell_types = (
+        [rename_dict.get(value, value) for value in cell_types]
+        if rename_dict is not None
+        else cell_types
+    )
+
+    labels = sc_adata.obs[annotation_key].astype(str).to_numpy()
+    type_to_code = {name: index for index, name in enumerate(cell_types)}
+    try:
+        label_codes = np.asarray([type_to_code[value] for value in labels])
+    except KeyError as error:
+        raise ValueError(
+            f"Unexpected single-cell type: {error.args[0]!r}; "
+            "all labels must be present in cell_list"
+        ) from error
+
+    expression = (
+        sc_adata.X.toarray() if isspmatrix(sc_adata.X) else np.asarray(sc_adata.X)
+    )
+    expression = np.asarray(expression, dtype=np.float32)
+
+    generator_seed = int(np.random.randint(0, 2**32 - 1))
+    rng = np.random.default_rng(generator_seed)
+
+    total_samples = int(n_sample_each_group) * int(group_number)
+    simulated = np.empty((total_samples, sc_adata.n_vars), dtype=np.float32)
+    fractions = np.zeros((total_samples, len(cell_types)), dtype=np.float32)
+    sample_names = []
+
+    cursor = 0
+    batch_size = 256
+    for group in range(int(group_number)):
+        cells_per_sample = int(
+            min_cells_each_group + group * cell_gap_each_group
+        )
+        if cells_per_sample <= 0:
+            raise ValueError("The number of cells per simulated sample must be positive")
+        for start in range(0, int(n_sample_each_group), batch_size):
+            current_size = min(batch_size, int(n_sample_each_group) - start)
+            draws = rng.integers(
+                0,
+                sc_adata.n_obs,
+                size=(current_size, cells_per_sample),
+            )
+            stop = cursor + current_size
+            simulated[cursor:stop] = expression[draws].mean(axis=1)
+            drawn_codes = label_codes[draws]
+            for cell_type_index in range(len(cell_types)):
+                fractions[cursor:stop, cell_type_index] = (
+                    drawn_codes == cell_type_index
+                ).sum(axis=1) / cells_per_sample
+            sample_names.extend(
+                f"Sample{index}_{project}_random_sc"
+                for index in range(cursor, stop)
+            )
+            cursor = stop
+
+    if cursor != total_samples:
+        raise RuntimeError(f"Generated {cursor} samples, expected {total_samples}")
+    if not np.allclose(fractions.sum(axis=1), 1.0, atol=1e-6):
+        raise RuntimeError("Random simulated fractions do not sum to one")
+
+    pseudo_adata = sc.AnnData(
+        X=simulated,
+        obs=pd.DataFrame(
+            fractions,
+            index=pd.Index(sample_names),
+            columns=output_cell_types,
+        ),
+        var=pd.DataFrame(index=sc_adata.var_names.copy()),
+    )
+    pseudo_adata.uns["simulation_mode"] = "random"
+
+    print(
+        "[RANDOM] "
+        f"generated={pseudo_adata.n_obs}, genes={pseudo_adata.n_vars}, "
+        f"cell-count groups={min_cells_each_group}--"
+        f"{min_cells_each_group + (group_number - 1) * cell_gap_each_group}",
+        flush=True,
+    )
+
+    if save:
+        reference_name = "reference_st_data" if data_kind == "st" else "reference_bulk_data"
+        reference_out_dir = check_paths(f"{out_dir}/{reference_name}")
+        if data_kind == "st":
+            pseudo_adata.write_h5ad(
+                f"{reference_out_dir}/filtered_{project}_st.h5ad"
+            )
+            pseudo_adata.obs.to_csv(
+                f"{reference_out_dir}/{project}_random_sc_all_fractions.csv"
+            )
+        else:
+            pd.DataFrame(
+                simulated,
+                index=sample_names,
+                columns=sc_adata.var_names,
+            ).to_csv(
+                f"{reference_out_dir}/{project}_stimulated_bulk.txt", sep="\t"
+            )
+            pseudo_adata.obs.to_csv(
+                f"{reference_out_dir}/{project}_stimulated_prop.txt", sep="\t"
+            )
+
+    if return_adata:
+        return pseudo_adata
+    return (
+        pd.DataFrame(
+            simulated,
+            index=sample_names,
+            columns=sc_adata.var_names,
+        ),
+        pseudo_adata.obs.copy(),
+    )
     
     
 
@@ -543,7 +711,8 @@ def bulk_simulation(sc_adata,
                     save=False,
                     return_adata=True,
                     specificity = False,
-                    high_purity=False):
+                    high_purity=False,
+                    simulation_mode="default"):
     
     """
     Generation of bulk expression data with referenced sc adata. \  
@@ -574,6 +743,10 @@ def bulk_simulation(sc_adata,
         The dictionary to rename the cell types in sc adata.
     return_adata: 
         Return adata or dataframe.
+    simulation_mode : {"default", "random"}, optional
+        ``"default"`` uses the existing CytoBulk simulator. ``"random"``
+        uniformly samples single cells with replacement from the complete
+        reference pool and follows NumPy's global random state.
 
     Returns
     -------
@@ -581,6 +754,7 @@ def bulk_simulation(sc_adata,
     
     """
 
+    _validate_simulation_mode(simulation_mode)
     start_t = time.perf_counter()
 
     print('')
@@ -589,6 +763,22 @@ def bulk_simulation(sc_adata,
 
     if n_sample_each_group < 3000:
         n_sample_each_group = 3000
+    if simulation_mode == "random":
+        return _random_single_cell_simulation(
+            sc_adata=sc_adata,
+            cell_list=cell_list,
+            annotation_key=annotation_key,
+            project=project,
+            out_dir=out_dir,
+            n_sample_each_group=n_sample_each_group,
+            min_cells_each_group=min_cells_each_group,
+            cell_gap_each_group=cell_gap_each_group,
+            group_number=group_number,
+            rename_dict=rename_dict,
+            save=save,
+            return_adata=return_adata,
+            data_kind="bulk",
+        )
     n_celltype = len(cell_list)
     # Subset single-cell data
     sub_sc_adata = sc_adata[sc_adata.obs[annotation_key].isin(cell_list),:].copy()
@@ -861,7 +1051,8 @@ def st_simulation(sc_adata,
                   rename_dict=None,
                   average_ref=False,
                   save=False,
-                  return_adata=True):
+                  return_adata=True,
+                  simulation_mode="default"):
     """
     Generation of bulk expression data with referenced sc adata. \  
         Total stimultated number = n_sample_each_group*group_number \ 
@@ -891,20 +1082,48 @@ def st_simulation(sc_adata,
         The dictionary to rename the cell types in sc adata.
     return_adata: 
         Return adata or dataframe.
+    simulation_mode : {"default", "random"}, optional
+        ``"default"`` uses the existing CytoBulk simulator. ``"random"``
+        uniformly samples single cells with replacement from the complete
+        reference pool and follows NumPy's global random state.
 
     Returns
     -------
     Returns the stimulated bulk data and the corresponding cell type fraction.
     
     """
+    _validate_simulation_mode(simulation_mode)
     if n_sample_each_group < 3000:
         n_sample_each_group = 3000
     reference_out_dir = check_paths(out_dir+'/reference_st_data')
-    if exists(f"{reference_out_dir}/filtered_{project}_st.h5ad"):
-        adata = sc.read_h5ad(f"{reference_out_dir}/filtered_{project}_st.h5ad")
-        print(f'{reference_out_dir}/filtered_{project}_st.h5ad already exists, skipping simulation.')
+    cached_path = f"{reference_out_dir}/filtered_{project}_st.h5ad"
+    if exists(cached_path):
+        adata = sc.read_h5ad(cached_path)
+        cached_mode = _infer_cached_simulation_mode(adata)
+        if cached_mode != simulation_mode:
+            raise ValueError(
+                f"Cached simulation at {cached_path} uses simulation_mode="
+                f"{cached_mode!r}, but {simulation_mode!r} was requested. "
+                "Use a matching mode or a new out_dir/project."
+            )
+        print(f"{cached_path} already exists, skipping simulation.")
         return adata
-
+    if simulation_mode == "random":
+        return _random_single_cell_simulation(
+            sc_adata=sc_adata,
+            cell_list=cell_list,
+            annotation_key=annotation_key,
+            project=project,
+            out_dir=out_dir,
+            n_sample_each_group=n_sample_each_group,
+            min_cells_each_group=min_cells_each_group,
+            cell_gap_each_group=cell_gap_each_group,
+            group_number=group_number,
+            rename_dict=rename_dict,
+            save=save,
+            return_adata=return_adata,
+            data_kind="st",
+        )
     else:
         start_t = time.perf_counter()
         print('')
@@ -2034,4 +2253,4 @@ def bulk_simulation_case(sc_adata,
     
     adata = sc.AnnData(ref_data)
     adata.obs = ref_prop
-    return 
+    return
