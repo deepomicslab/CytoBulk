@@ -25,7 +25,7 @@ def _bulk_mapping_parallel(i, cell_num, bulk_data, sc_data, cell_list, meta_dict
 
     name = bulk_data.columns[i]
     sample_cor = np.dot(bulk_data[name].values.reshape(1,bulk_data.shape[0]),sc_data.values)
-    cor_index = cell_list[np.argsort(sample_cor)]
+    cor_index = cell_list[np.argsort(-sample_cor)]  # Highest PCC first.
     for j, cellname in enumerate(cellname_list):
       mask = np.isin(cor_index, meta_dict[cellname])
       sub_cell = cor_index[mask]
@@ -171,7 +171,7 @@ def bulk_mapping(bulk_adata,
     else:
         for index_num, (i, sample_num) in enumerate(tqdm(cell_num.iterrows())):
             sample_cor = np.dot(bulk_data[i].values.reshape(1,bulk_data.shape[0]),sc_data.values)
-            cor_index = cell_list[np.argsort(sample_cor)]
+            cor_index = cell_list[np.argsort(-sample_cor)]  # Highest PCC first.
             for j, cellname in enumerate(cellname_list):
                 mask = np.isin(cor_index, meta_dict[cellname])
                 sub_cell = cor_index[mask]
